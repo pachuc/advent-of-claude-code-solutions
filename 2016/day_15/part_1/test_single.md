@@ -1,0 +1,1 @@
+Disc #1 has 7 positions; at time=0, it is at position 3.

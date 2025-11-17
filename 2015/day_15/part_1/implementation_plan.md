@@ -1,0 +1,279 @@
+# Implementation Plan: Cookie Recipe Optimization
+
+## Problem Analysis
+
+This is a constrained optimization problem where we need to find the distribution of 100 teaspoons across N ingredients to maximize a score function. The score is the product of four property sums (capacity, durability, flavor, texture), with negative sums treated as zero.
+
+### Problem Characteristics
+- **Input size**: 4 ingredients in the given input
+- **Search space**: Combinations of non-negative integers that sum to 100
+- **Complexity**: For N ingredients and T total teaspoons, this is a "stars and bars" problem with C(T+N-1, N-1) possible combinations
+- **For 4 ingredients and 100 teaspoons**: C(103, 3) = 176,851 combinations - fully enumerable
+
+### Algorithm Selection
+
+Given the manageable search space (~177k combinations), we'll use **exhaustive enumeration** with efficient generation:
+
+1. **Brute force with smart iteration**: Generate all valid distributions and evaluate each
+2. **Time Complexity**: O(n^3) for 4 ingredients (three nested loops with the fourth derived)
+3. **Space Complexity**: O(1) - we only track the maximum score
+
+Alternative approaches considered but rejected:
+- **Dynamic Programming**: Overkill for this size; adds complexity without benefit
+- **Gradient methods**: Non-convex objective function makes this unsuitable
+- **Random search/Genetic algorithms**: Unnecessary given the tractable search space
+
+## Implementation Steps
+
+### Step 1: Input Parsing
+**File**: `solution.py`
+
+Create a function to parse the input file:
+```python
+def parse_input(filename):
+    """
+    Parse ingredient data from file.
+
+    Returns:
+        List of dictionaries, each containing:
+        - name: str
+        - capacity: int
+        - durability: int
+        - flavor: int
+        - texture: int
+        - calories: int
+    """
+```
+
+**Implementation details**:
+- Read file line by line
+- Use string splitting and parsing to extract ingredient name and properties
+- Handle the format: "Name: capacity X, durability Y, flavor Z, texture W, calories C"
+- Store each ingredient as a dictionary with property names as keys
+- Return a list of ingredient dictionaries
+
+**Error handling**:
+- Check if file exists (raise FileNotFoundError if not)
+- Skip empty lines
+- Basic validation: ensure each line has expected format
+
+**Edge cases to handle**:
+- Whitespace variations (leading/trailing spaces, variable spaces around colons/commas)
+- Negative property values (keep as-is)
+- Empty lines in input file (skip them)
+
+### Step 2: Score Calculation Function
+**File**: `solution.py`
+
+Create a function to calculate the score for a given distribution:
+```python
+def calculate_score(ingredients, amounts):
+    """
+    Calculate the total score for a given distribution of ingredients.
+
+    Args:
+        ingredients: List of ingredient dictionaries
+        amounts: List of teaspoon amounts (same order as ingredients)
+
+    Returns:
+        Integer score (product of property totals, with negatives replaced by 0)
+    """
+```
+
+**Implementation details**:
+- For each property (capacity, durability, flavor, texture):
+  - Sum up: amounts[i] * ingredients[i][property] for all i
+  - If sum is negative, replace with 0
+- Multiply all four property totals together
+- Return the final score
+
+**Optimization notes**:
+- Use list comprehensions or numpy for efficient calculation
+- Early termination: if any property total is 0, score is 0 (can return immediately)
+
+### Step 3: Distribution Generation
+**File**: `solution.py`
+
+Create a function to generate all valid distributions:
+```python
+def generate_distributions(num_ingredients, total_teaspoons):
+    """
+    Generate all valid distributions of teaspoons across ingredients.
+
+    Args:
+        num_ingredients: Number of ingredients
+        total_teaspoons: Total teaspoons to distribute (100)
+
+    Yields:
+        Tuples of amounts that sum to total_teaspoons
+    """
+```
+
+**Implementation approach**:
+For 4 ingredients, use three nested loops:
+```
+for a in range(0, 101):
+    for b in range(0, 101-a):
+        for c in range(0, 101-a-b):
+            d = 100 - a - b - c
+            yield (a, b, c, d)
+```
+
+**Optimizations**:
+- Use generator (yield) to avoid storing all combinations in memory
+- Adjust loop bounds to avoid generating invalid combinations
+- The fourth ingredient amount is derived, not iterated
+
+### Step 4: Main Optimization Function
+**File**: `solution.py`
+
+Create the main function that finds the optimal distribution:
+```python
+def find_optimal_recipe(ingredients):
+    """
+    Find the distribution of ingredients that maximizes the score.
+
+    Args:
+        ingredients: List of ingredient dictionaries
+
+    Returns:
+        Tuple of (max_score, optimal_amounts)
+    """
+```
+
+**Implementation details**:
+- Initialize max_score = 0 and best_amounts = None
+- Iterate through all distributions generated by generate_distributions()
+- For each distribution:
+  - Calculate the score using calculate_score()
+  - If score > max_score, update max_score and best_amounts
+- Return the maximum score and optimal distribution
+
+**Optimization notes**:
+- No need to store all scores, just track the maximum
+- Consider adding progress tracking for large searches (optional)
+
+### Step 5: Verification Function
+**File**: `solution.py`
+
+Create a verification function to test the implementation before running on actual input:
+```python
+def verify_solution():
+    """
+    Quick verification of the solution with known examples.
+
+    This function runs critical tests to ensure correctness:
+    1. Known example: Butterscotch and Cinnamon should yield 62,842,880
+    2. Distribution generation count: Should generate exactly 176,851 combinations
+    3. Distribution constraints: All should sum to 100 and be non-negative
+
+    Raises AssertionError if any test fails.
+    """
+```
+
+**Implementation details**:
+- Test 1: Create test data with Butterscotch and Cinnamon from problem example
+  - Expected score: 62,842,880 with amounts [44, 56]
+- Test 2: Count all distributions generated for 4 ingredients, 100 teaspoons
+  - Expected count: 176,851 (validates combinatorial logic)
+- Test 3: Verify first 1000 distributions sum to 100 and all values >= 0
+  - Ensures constraints are maintained
+
+**Why this is important**:
+- Catches bugs before running on actual input
+- Validates against known correct answer
+- Quick to run (< 1 second)
+- Provides confidence in the implementation
+
+### Step 6: Main Execution Logic
+**File**: `solution.py`
+
+Create the main execution block:
+```python
+def main():
+    """Main execution function."""
+    import time
+
+    # Run verification tests first
+    print("Running verification tests...")
+    verify_solution()
+    print("All verification tests passed!\n")
+
+    # Parse input
+    ingredients = parse_input('input.md')
+
+    # Find optimal recipe with timing
+    start_time = time.time()
+    max_score, optimal_amounts = find_optimal_recipe(ingredients)
+    elapsed_time = time.time() - start_time
+
+    # Output result
+    print(max_score)
+
+    # Print distribution and timing for verification
+    print(f"\nOptimal distribution:")
+    for i, ing in enumerate(ingredients):
+        print(f"  {ing['name']}: {optimal_amounts[i]} teaspoons")
+    print(f"\nExecution time: {elapsed_time:.2f} seconds")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Implementation details**:
+- Run verification tests first to catch bugs early
+- Add timing measurement to verify performance expectations
+- Print optimal distribution for manual verification
+- Print execution time to confirm efficiency
+
+## Code Structure
+
+```
+solution.py
+├── parse_input(filename) -> List[Dict]
+├── calculate_score(ingredients, amounts) -> int
+├── generate_distributions(num_ingredients, total_teaspoons) -> Generator
+├── find_optimal_recipe(ingredients) -> Tuple[int, Tuple[int]]
+├── verify_solution() -> None
+└── main()
+```
+
+## Performance Considerations
+
+**Expected runtime**:
+- ~177k combinations to evaluate
+- Each evaluation: 4 properties × 4 ingredients = 16 multiplications + 4 sums + 1 product
+- Estimated: < 1 second on modern hardware
+
+**Memory usage**:
+- Input: 4 ingredients × ~6 properties = minimal
+- Processing: Generator pattern keeps memory constant
+- Total: O(1) space complexity
+
+## Implementation Order
+
+1. Start with parse_input() - validate with print statements
+2. Implement calculate_score() - test with example from problem
+3. Implement generate_distributions() - verify it generates correct count
+4. Implement find_optimal_recipe() - combines everything
+5. Implement verify_solution() - creates automated tests
+6. Add main() execution block
+7. Run verification tests, then solve actual input
+
+## Potential Pitfalls to Avoid
+
+1. **Off-by-one errors**: Ensure loops include 0 and 100 as valid amounts
+2. **Negative handling**: Remember to replace negative property totals with 0, not the individual properties
+3. **Integer overflow**: Python handles big integers automatically, no concern
+4. **Parsing errors**: Watch for the exact format of input (spaces, colons, commas)
+5. **Property order**: Ensure consistent ordering between parsing and calculation
+
+## Extensions for Generalization (if needed)
+
+While not required for this specific problem, the code could be extended to:
+- Handle variable number of ingredients (currently assumes 4)
+- Use recursive generation for arbitrary N ingredients
+- Add caching/memoization if properties were more expensive to compute
+- Parallelize the search across multiple cores
+
+However, these are **not necessary** for the current problem scope.
